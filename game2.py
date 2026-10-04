@@ -1,116 +1,175 @@
-import random
 import streamlit as st
 
-st.set_page_config(page_title="Traffic Dodge Game", page_icon="🚙")
-
-st.title("🚙 Симулятор выживания на дороге")
-st.write(
-    "Уворачивайся от встречных машин! Твоя машинка внизу (🚙). Нажимай кнопки,"
-    " чтобы маневрировать."
+st.set_page_config(
+    page_title="Авто-гонки на выживание", page_icon="🚙", layout="centered"
 )
 
-# 1. Инициализация состояния игры
-if "player_pos" not in st.session_state:
-  st.session_state.player_pos = 1  # 0 - лево, 1 - центр, 2 - право
-  st.session_state.score = 0
-  st.session_state.game_over = False
-  # Дорога длиной 5 клеток, на старте она пустая (везде None)
-  st.session_state.road = [
-      [None, None, None],
-      [None, None, None],
-      [None, None, None],
-      [None, None, None],
-      [None, None, None],
-  ]
+st.title("🚙 Авто-гонки со стрелочками")
+st.write(
+    "Машинка едет вперед **автоматически**! Управляйте синей машинкой с помощью"
+    " **стрелочек клавиатуры (⬅️ / ➡️)**, чтобы уворачиваться от красных"
+    " автомобилей."
+)
 
+# JavaScript + HTML код для динамической игры с управлением от клавиатуры
+game_html = """
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        #game-container {
+            font-family: monospace;
+            font-size: 28px;
+            line-height: 1.4;
+            background-color: #222;
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            width: 240px;
+            margin: 0 auto;
+            text-align: center;
+            box-shadow: 0px 4px 15px rgba(0,0,0,0.5);
+        }
+        #score {
+            font-size: 20px;
+            margin-bottom: 10px;
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        #road {
+            background-color: #333;
+            padding: 10px 0;
+            border-left: 4px dashed #fff;
+            border-right: 4px dashed #fff;
+        }
+        .btn-restart {
+            margin-top: 15px;
+            padding: 8px 15px;
+            font-size: 16px;
+            background-color: #ff4b4b;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
 
-# Функция для перезапуска
-def restart_game():
-  st.session_state.player_pos = 1
-  st.session_state.score = 0
-  st.session_state.game_over = False
-  st.session_state.road = [[None, None, None] for _ in range(5)]
+<div id="game-container">
+    <div id="score">Очки: 0</div>
+    <div id="road"></div>
+    <div id="game-over-space"></div>
+</div>
 
+<script>
+    const ROWS = 7;
+    const COLS = 3;
+    let playerPos = 1; // 0 - лево, 1 - центр, 2 - право
+    let score = 0;
+    let gameOver = false;
+    let gameInterval;
+    
+    // Создаем пустую сетку дороги
+    let road = Array(ROWS).fill(null).map(() => Array(COLS).fill(null));
 
-# 2. Логика движения игры (вызывается при каждом ходе игрока)
-def game_step(direction):
-  if st.session_state.game_over:
-    return
+    const roadDiv = document.getElementById('road');
+    const scoreDiv = document.getElementById('score');
+    const gameOverSpace = document.getElementById('game-over-space');
 
-  # Двигаем игрока
-  if direction == "left" and st.session_state.player_pos > 0:
-    st.session_state.player_pos -= 1
-  elif direction == "right" and st.session_state.player_pos < 2:
-    st.session_state.player_pos += 1
+    function render() {
+        let html = "";
+        for (let r = 0; r < ROWS; r++) {
+            let rowStr = "";
+            for (let c = 0; c < COLS; c++) {
+                if (r === ROWS - 1 && c === playerPos) {
+                    rowStr += gameOver ? "💥" : "🚙";
+                } else {
+                    rowStr += road[r][c] ? "🚗" : "⬛";
+                }
+            }
+            html += rowStr + "<br>";
+        }
+        roadDiv.innerHTML = html;
+        scoreDiv.innerText = "Очки: " + score;
+    }
 
-  # Сдвигаем дорогу вниз (удаляем нижний ряд, добавляем новый сверху)
-  st.session_state.road.pop()
+    function updateGame() {
+        if (gameOver) return;
 
-  # Генерируем новую встречную машину сверху с шансом 40%
-  new_row = [None, None, None]
-  if random.random() < 0.4:
-    spawn_lane = random.randint(0, 2)
-    new_row[spawn_lane] = "🚗"
+        // Сдвигаем все машины вниз
+        road.pop();
+        
+        // Генерируем новую машину сверху с вероятностью 35%
+        let newRow = [null, null, null];
+        if (Math.random() < 0.35) {
+            let lane = Math.floor(Math.random() * COLS);
+            newRow[lane] = "🚗";
+        }
+        road.unshift(newRow);
 
-  st.session_state.road.insert(0, new_row)
+        // Проверяем столкновение на предпоследнем шаге перед отрисовкой игрока
+        // (так как игрок на самой нижней строчке ROWS-1)
+        if (road[ROWS - 1][playerPos] === "🚗") {
+            endGame();
+            return;
+        }
 
-  # Проверяем столкновение: если на 4-й строчке (самой нижней) в нашей полосе есть машина
-  last_row = st.session_state.road[4]
-  if last_row[st.session_state.player_pos] == "🚗":
-    st.session_state.game_over = True
-  else:
-    st.session_state.score += 1
+        score += 1;
+        render();
+    }
 
+    function endGame() {
+        gameOver = true;
+        clearInterval(gameInterval);
+        render();
+        gameOverSpace.innerHTML = `
+            <div style="color: #ff4b4b; font-size: 18px; margin-top: 10px; font-weight: bold;">БАБАХ! ИГРА ОКОНЧЕНА</div>
+            <button class="btn-restart" onclick="resetGame()">Играть заново 🔄</button>
+        `;
+    }
 
-# 3. Интерфейс игры
-if st.session_state.game_over:
-  st.error(f"💥 БУМ! Столкновение! Твой итоговый счет: {st.session_state.score}")
-  st.button("Сыграть еще раз 🔄", on_click=restart_game)
-else:
-  st.metric(label="Набранные очки 🏆", value=st.session_state.score)
+    function resetGame() {
+        playerPos = 1;
+        score = 0;
+        gameOver = false;
+        road = Array(ROWS).fill(null).map(() => Array(COLS).fill(null));
+        gameOverSpace.innerHTML = "";
+        render();
+        clearInterval(gameInterval);
+        gameInterval = setInterval(updateGame, 400); // Скорость движения (400 мс на шаг)
+    }
 
-  # Отрисовка дороги на экране
-  road_html = "<div style='font-family: monospace; font-size: 24px; line-height: 1.5; background-color: #2b2b2b; padding: 20px; border-radius: 10px; width: 180px; margin: 0 auto; color: white;'>"
+    // Слушатель нажатий клавиатуры
+    window.addEventListener('keydown', function(event) {
+        if (gameOver) return;
+        
+        if (event.key === 'ArrowLeft' && playerPos > 0) {
+            playerPos--;
+            // Сразу проверяем столкновение при маневре
+            if (road[ROWS - 1][playerPos] === "🚗") {
+                endGame();
+            } else {
+                render();
+            }
+        } else if (event.key === 'ArrowRight' && playerPos < COLS - 1) {
+            playerPos++;
+            // Сразу проверяем столкновение при маневре
+            if (road[ROWS - 1][playerPos] === "🚗") {
+                endGame();
+            } else {
+                render();
+            }
+        }
+    });
 
-  # Рисуем препятствия
-  for row in st.session_state.road:
-    row_str = "️|"
-    for cell in row:
-      row_str += cell if cell else "⬜"
-    row_str += "|"
-    road_html += f"<center>{row_str}</center>"
+    // Старт игры
+    resetGame();
+</script>
 
-  # Рисуем игрока на нижней строчке
-  player_row = ["⬜", "⬜", "⬜"]
-  player_row[st.session_state.player_pos] = "🚙"
-  player_row_str = "|" + "".join(player_row) + "|"
-  road_html += f"<center><b>{player_row_str}</b></center></div>"
+</body>
+</html>
+"""
 
-  # Выводим дорогу в Streamlit
-  st.markdown(road_html, unsafe_allow_html=True)
-
-  st.write("")  # Отступ
-
-  # Кнопки управления
-  col1, col2, col3 = st.columns([1, 2, 1])
-  with col1:
-    st.button(
-        "⬅️ Влево",
-        on_click=game_step,
-        args=("left",),
-        disabled=st.session_state.game_over,
-    )
-  with col2:
-    st.button(
-        "🔲 Прямо",
-        on_click=game_step,
-        args=("straight",),
-        disabled=st.session_state.game_over,
-    )
-  with col3:
-    st.button(
-        "Вправо ➡️",
-        on_click=game_step,
-        args=("right",),
-        disabled=st.session_state.game_over,
-    )
+# Встраиваем HTML/JS компонент в Streamlit
+st.components.v1.html(game_html, height=450)
