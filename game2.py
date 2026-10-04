@@ -4,14 +4,14 @@ st.set_page_config(
     page_title="Авто-гонки на выживание", page_icon="🚙", layout="centered"
 )
 
-st.title("🚙 Авто-гонки со стрелочками")
+st.title("🚙 Авто-гонки (A / D)")
 st.write(
     "Машинка едет вперед **автоматически**! Управляйте синей машинкой с помощью"
-    " **стрелочек клавиатуры (⬅️ / ➡️)**, чтобы уворачиваться от красных"
+    " клавиш **A (влево)** и **D (вправо)**, чтобы уворачиваться от красных"
     " автомобилей."
 )
 
-# JavaScript + HTML код для динамической игры с управлением от клавиатуры
+# JavaScript + HTML код с управлением на кнопках A и D
 game_html = """
 <!DOCTYPE html>
 <html>
@@ -70,7 +70,6 @@ game_html = """
     let gameOver = false;
     let gameInterval;
     
-    // Создаем пустую сетку дороги
     let road = Array(ROWS).fill(null).map(() => Array(COLS).fill(null));
 
     const roadDiv = document.getElementById('road');
@@ -97,10 +96,8 @@ game_html = """
     function updateGame() {
         if (gameOver) return;
 
-        // Сдвигаем все машины вниз
         road.pop();
         
-        // Генерируем новую машину сверху с вероятностью 35%
         let newRow = [null, null, null];
         if (Math.random() < 0.35) {
             let lane = Math.floor(Math.random() * COLS);
@@ -108,8 +105,6 @@ game_html = """
         }
         road.unshift(newRow);
 
-        // Проверяем столкновение на предпоследнем шаге перед отрисовкой игрока
-        // (так как игрок на самой нижней строчке ROWS-1)
         if (road[ROWS - 1][playerPos] === "🚗") {
             endGame();
             return;
@@ -137,24 +132,25 @@ game_html = """
         gameOverSpace.innerHTML = "";
         render();
         clearInterval(gameInterval);
-        gameInterval = setInterval(updateGame, 400); // Скорость движения (400 мс на шаг)
+        gameInterval = setInterval(updateGame, 400); // Скорость автоматического движения
     }
 
-    // Слушатель нажатий клавиатуры
+    // Слушатель нажатий клавиатуры (A и D)
     window.addEventListener('keydown', function(event) {
         if (gameOver) return;
         
-        if (event.key === 'ArrowLeft' && playerPos > 0) {
+        // Превращаем в нижний регистр, чтобы работало и при зажатом Shift
+        const key = event.key.toLowerCase();
+        
+        if ((key === 'a' || key === 'ф') && playerPos > 0) {
             playerPos--;
-            // Сразу проверяем столкновение при маневре
             if (road[ROWS - 1][playerPos] === "🚗") {
                 endGame();
             } else {
                 render();
             }
-        } else if (event.key === 'ArrowRight' && playerPos < COLS - 1) {
+        } else if ((key === 'd' || key === 'в') && playerPos < COLS - 1) {
             playerPos++;
-            // Сразу проверяем столкновение при маневре
             if (road[ROWS - 1][playerPos] === "🚗") {
                 endGame();
             } else {
@@ -163,7 +159,6 @@ game_html = """
         }
     });
 
-    // Старт игры
     resetGame();
 </script>
 
@@ -171,5 +166,5 @@ game_html = """
 </html>
 """
 
-# Встраиваем HTML/JS компонент в Streamlit
 st.components.v1.html(game_html, height=450)
+
